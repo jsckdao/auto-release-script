@@ -22,7 +22,7 @@ const prodProjectDir = Path.join(__dirname, 'prod-projects');
 app.use(express.json());
 
 app.post('/payload', useSafe(async (req, res) => {
-    const evt = req.headers['X-GitHub-Event'];
+    const evt = req.headers['x-github-event'];
     if (evt === 'release') {
         return release(req, res);
     } else if (evt === 'create') {
@@ -79,7 +79,7 @@ async function update(basePath, projectName, tag, ssh_url) {
     if (!(await exists(projectPath))) {
         await exec(`git clone ${ssh_url} ${projectName}`, { cwd: basePath });
     } else {
-        await exec('git fetch --all', { cwd: projectPath });
+        await exec('git fetch --tags', { cwd: projectPath });
     }
     await exec(`git checkout ${tag}`, { cwd: projectPath });
 }
