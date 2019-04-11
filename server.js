@@ -22,10 +22,10 @@ const prodProjectDir = Path.join(__dirname, 'prod-projects');
 app.use(express.json());
 
 app.post('/payload', useSafe(async (req, res) => {
-    const { action } = res.body;
-    if (action === 'published') {
+    const evt = req.headers['X-GitHub-Event'];
+    if (evt === 'release') {
         return release(req, res);
-    } else if (action === 'create') {
+    } else if (evt === 'create') {
         return prerelease(req, res);
     } else {
         return res.json({ message: 'do not thing' });
