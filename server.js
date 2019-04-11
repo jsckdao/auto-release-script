@@ -41,33 +41,21 @@ app.get('/', useSafe(async (req, res) => {
 
 async function release(req, res) {
     const { repository, release } = req.body;
-    try {
-        await useLock(repository.name, async () => {
-            await update(prodProjectDir, repository.name, release.tag_name, repository.ssh_url);
-            res.json({ message: 'ok' });
-        });
-    } catch (err) {
-        console.error(err);
-        res.sendStatus(403);
-        res.json({ message: err.message });
-    }
+    await useLock(repository.name, async () => {
+        await update(prodProjectDir, repository.name, release.tag_name, repository.ssh_url);
+        res.json({ message: 'ok' });
+    });
 }
 
 async function prerelease(req, res) {
     const { repository, ref, ref_type } = req.body;
     if (ref_type !== 'tag') {
-        return res.json({ message: 'do nothing'});
+        return res.json({ message: 'do nothing' });
     }
-    try {
-        await useLock(repository.name, async () => {
-            await update(preProjectDir, repository.name, ref, repository.ssh_url);
-            res.json({ message: 'ok' });
-        });
-    } catch (err) {
-        console.error(err);
-        res.sendStatus(403);
-        res.json({ message: err.message });
-    }
+    await useLock(repository.name, async () => {
+        await update(preProjectDir, repository.name, ref, repository.ssh_url);
+        res.json({ message: 'ok' });
+    });
 }
 
 async function update(basePath, projectName, tag, ssh_url) {
@@ -105,7 +93,11 @@ async function useLock(projectName, fn) {
 
 function useSafe(fn) {
     return (req, res) => {
-        fn(req, res).catch(console.error);
+        fn(req, res).catch((err) => {
+            console.error(err);
+            res.sendStatus(403);
+            res.json({ message: err.message });
+        });
     };
 }
 
