@@ -21,14 +21,72 @@ const prodProjectDir = Path.join(__dirname, 'prod-projects');
 
 app.use(express.json());
 
-app.post('/payload', async (req, res) => {
-    const { action, repository, release } = req.body;
-    if (action !== 'published') {
+app.post('/payload', useSafe(async (req, res) => {
+    const { action } = res.body;
+    if (action === 'published') {
+        return release(req, res);
+    } else if (action === 'create') {
+        return prerelease(req, res);
+    } else {
         return res.json({ message: 'do not thing' });
     }
+}));
 
+app.get('/', useSafe(async (req, res) => {
+    res.json({
+        'pre_projects': await getProjectList(preProjectDir),
+        'prod_projects': await getProjectList(prodProjectDir)
+    });
+}));
+
+async function release(req, res) {
+    const { repository, release } = req.body;
+    try {
+        await useLock(repository.name, async () => {
+            await update(prodProjectDir, repository.name, release.tag_name, repository.ssh_url);
+            res.json({ message: 'ok' });
+        });
+    } catch (err) {
+        console.error(err);
+        res.sendStatus(403);
+        res.json({ message: err.message });
+    }
+}
+
+async function prerelease(req, res) {
+    const { repository, ref, ref_type } = req.body;
+    if (ref_type !== 'tag') {
+        return res.json({ message: 'do nothing'});
+    }
+    try {
+        await useLock(repository.name, async () => {
+            await update(preProjectDir, repository.name, ref, repository.ssh_url);
+            res.json({ message: 'ok' });
+        });
+    } catch (err) {
+        console.error(err);
+        res.sendStatus(403);
+        res.json({ message: err.message });
+    }
+}
+
+async function update(basePath, projectName, tag, ssh_url) {
+    const projectPath = Path.join(basePath, projectName);
+    if (!(await exists(basePath))) {
+        await mkdir(basePath, { recursive: true });
+    }
+
+    if (!(await exists(projectPath))) {
+        await exec(`git clone ${ssh_url} ${projectName}`, { cwd: basePath });
+    } else {
+        await exec('git fetch --all', { cwd: projectPath });
+    }
+    await exec(`git checkout ${tag}`, { cwd: projectPath });
+}
+
+async function useLock(projectName, fn) {
     // 创建一个锁文件, 不允许同时操作同一个项目
-    const lockFile = Path.join(os.tmpdir(), 'auto-update-project-' + repository.name + '.lock');
+    const lockFile = Path.join(os.tmpdir(), 'auto-update-project-' + projectName + '.lock');
     if (await exists(lockFile)) {
         return res.json({ message: 'locking' });
     } else {
@@ -36,37 +94,20 @@ app.post('/payload', async (req, res) => {
     }
 
     try {
-        const basePath = release.prerelease ? preProjectDir : prodProjectDir;
-        const projectPath = Path.join(basePath, repository.name);
-        if (!(await exists(basePath))) {
-            await mkdir(basePath, { recursive: true });
-        }
-
-        if (!(await exists(projectPath))) {
-            await exec(`git clone ${repository.ssh_url} ${repository.name}`, { cwd: basePath });
-        } else {
-            await exec('git fetch --all', { cwd: projectPath });
-        }
-        await exec(`git checkout ${release.tag_name}`, { cwd: projectPath });
-        res.json({ message: 'ok' });
-    } catch (err) {
-        console.error(err);
-        res.sendStatus(403);
-        res.json({ message: err.message });
+        return fn();
     } finally {
         // 移除锁文件
         if (await exists(lockFile)) {
             await unlink(lockFile);
         }
     }
-});
+}
 
-app.get('/', async (req, res) => {
-    res.json({
-        'pre_projects': await getProjectList(preProjectDir),
-        'prod_projects': await getProjectList(prodProjectDir)
-    });
-});
+function useSafe(fn) {
+    return (req, res) => {
+        fn(req, res).catch(console.error);
+    };
+}
 
 async function getProjectList(dir) {
     if (await exists(dir)) {
