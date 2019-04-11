@@ -11,7 +11,10 @@ const exec = promisify(child.exec);
 const exists = promisify(fs.exists);
 const mkdir = promisify(fs.mkdir);
 const writeFile = promisify(fs.writeFile);
+const readFile = promisify(fs.readFile);
 const unlink = promisify(fs.unlink);
+const readdir = promisify(fs.readdir);
+
 
 const preProjectDir = Path.join(__dirname, 'pre-projects');
 const prodProjectDir = Path.join(__dirname, 'prod-projects');
@@ -57,6 +60,33 @@ app.post('/payload', async (req, res) => {
         }
     }
 });
+
+app.get('/', async (req, res) => {
+    res.json({
+        'pre_projects': await getProjectList(preProjectDir),
+        'prod_projects': await getProjectList(prodProjectDir)
+    });
+});
+
+async function getProjectList(dir) {
+    if (await exists(dir)) {
+        const arr = [];
+        const files = await readdir(dir);
+        for (const fname of files) {
+            arr.push({
+                name: fname,
+                version: await getProjectVersion(dir, fname)
+            });
+        }
+        return arr;
+    } else return [];
+}
+
+async function getProjectVersion(dir, name) {
+    const packageFile = Path.join(dir, name, 'package.json');
+    const pkg = JSON.parse(await readFile(packageFile, 'utf8'));
+    return pkg.version || '0.0.0';
+}
 
 app.listen(8743);
 
