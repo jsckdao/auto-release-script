@@ -47,7 +47,7 @@ app.post('/payload', async (req, res) => {
         } else {
             await exec('git fetch --all', { cwd: projectPath });
         }
-        await exec(`git checkout ${tag_name}`, { cwd: projectPath });
+        await exec(`git checkout ${release.tag_name}`, { cwd: projectPath });
         res.json({ message: 'ok' });
     } catch (err) {
         console.error(err);
