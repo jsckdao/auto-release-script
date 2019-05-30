@@ -67,6 +67,8 @@ async function update(basePath, projectName, tag, ssh_url) {
     if (!(await exists(projectPath))) {
         await exec(`git clone ${ssh_url} ${projectName}`, { cwd: basePath });
     } else {
+        await exec('rm -rf dist');
+        await exec('git checkout dist');
         await exec('git fetch --tags', { cwd: projectPath });
     }
     await exec(`git checkout ${tag}`, { cwd: projectPath });
